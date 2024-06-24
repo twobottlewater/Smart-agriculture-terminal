@@ -44,6 +44,7 @@ static lv_obj_t *chart2;
 static lv_obj_t *time_label;
 static lv_obj_t *temp_label;
 static lv_obj_t *humid_label;
+static lv_obj_t *lux_label;
 static lv_obj_t *flush_button;
 static lv_obj_t *light_button;
 static lv_chart_series_t *ser1;
@@ -53,7 +54,7 @@ static lv_chart_series_t *ser;
 static int temp_index = 0;
 static int temp_values[MAX_TEMP_VALUES];
 static int humid_values[MAX_TEMP_VALUES];
-
+static int lux_values[MAX_TEMP_VALUES];
 
 bool check_user_credentials(const char* username, const char* password) {
     int fd = open("./mima.txt", O_RDONLY);
@@ -88,7 +89,8 @@ bool check_user_credentials(const char* username, const char* password) {
 }
 
 //------------展示hello world--------
-void show_hello_world_screen() {
+void show_hello_world_screen() 
+{
    lv_obj_t * scr = lv_scr_act();
     lv_obj_clean(scr);  // 清除当前屏幕上的所有对象
 
@@ -347,9 +349,11 @@ static void generate_random_temp(lv_timer_t *timer) {
    for (int i = 0; i < MAX_TEMP_VALUES; i++) {
         temp_values[i] = rand() % 51; // Random temperature between 0 and 50
         humid_values[i] = rand() % 101; // Random humidity between 0 and 100
+        lux_values[i] = rand() % 2001; // Random Lux between 0 and 2000
     }
     lv_label_set_text_fmt(temp_label, "temperature data: %d°C", temp_values[MAX_TEMP_VALUES - 1]);
     lv_label_set_text_fmt(humid_label, "Humidity data: %d%%", humid_values[MAX_TEMP_VALUES - 1]);
+    lv_label_set_text_fmt(lux_label, "Lux: %d lx", lux_values[MAX_TEMP_VALUES - 1]);
 }
 
 
@@ -363,14 +367,34 @@ void create_chart_screen() {
     lv_obj_set_style_text_font(time_label, &lv_font_montserrat_24, 0); // 设置字体大小
     lv_obj_align(time_label, LV_ALIGN_TOP_MID, 0, 10); // Top center with some offset
 
-    // 创建温湿度数据标签
+    // 创建温度数据标签
     temp_label = lv_label_create(scr);
-    lv_label_set_text(temp_label, "temperature data: xxx°C");
-    lv_obj_align(temp_label, LV_ALIGN_TOP_LEFT, 10, 50); // Top left with some offset
+    lv_label_set_text(temp_label, "Temperature: xxx°C");
+    lv_obj_align(temp_label, LV_ALIGN_TOP_LEFT, 10, 50); // 顶部左侧，稍微偏移
+    lv_obj_set_style_text_font(temp_label, &lv_font_montserrat_24, 0); // 设置字体大小
+    //lv_label_set_style_text_color(temp_label, lv_color_hex(0x0080FF), 0); // 设置字体颜色
 
+    // 创建湿度数据标签
     humid_label = lv_label_create(scr);
-    lv_label_set_text(humid_label, "Humidity data: xxx%");
-    lv_obj_align(humid_label, LV_ALIGN_TOP_LEFT, 10, 80); // Top left with some offset
+    lv_label_set_text(humid_label, "Humidity: xxx%");
+    lv_obj_align(humid_label, LV_ALIGN_TOP_LEFT, 10, 90); // 在温度标签下方，稍微偏移
+    lv_obj_set_style_text_font(humid_label, &lv_font_montserrat_24, 0); // 设置字体大小
+    //lv_label_set_style_text_color(humid_label, lv_color_hex(0xFF8000), 0); // 设置字体颜色
+
+    // 创建光照强度数据标签
+    lux_label = lv_label_create(scr);
+    lv_label_set_text(lux_label, "Lux: xxx lx");
+    lv_obj_align(lux_label, LV_ALIGN_TOP_LEFT, 10, 130); // 在湿度标签下方，稍微偏移
+    lv_obj_set_style_text_font(lux_label, &lv_font_montserrat_24, 0); // 设置字体大小
+    //lv_label_set_style_text_color(lux_label, lv_color_hex(0x00C000), 0); // 设置字体颜色
+
+    //     // 在初始化函数中创建 lux_label
+    // lux_label = lv_label_create(scr);
+    // lv_obj_set_style_text_font(lux_label, &lv_font_montserrat_14, 0); // 设置字体大小
+    // lv_obj_align(lux_label, LV_ALIGN_TOP_RIGHT, -10, 10); // 右上角对齐，调整偏移量
+
+    // // 在定时器回调函数中更新 Lux 值
+    // lv_label_set_text_fmt(lux_label, "Lux: %d", lux_values[MAX_TEMP_VALUES - 1]);
 
     // 创建一个水平容器用于放置标签和按钮 -----机器人按钮
     lv_obj_t * flush_cont = lv_obj_create(scr);
@@ -442,6 +466,12 @@ void create_chart_screen() {
     // 创建第一个系列
     ser1 = lv_chart_add_series(chart1, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
 
+    // ---------------------在折线图上方创建温度标签-----------------------
+    lv_obj_t *label1 = lv_label_create(chart1); // 将 label1 放置在 chart1 内部
+    lv_label_set_text(label1, "Temperature");
+    lv_obj_align(label1, LV_ALIGN_OUT_TOP_LEFT, 0, -10); // 相对于 chart1 的顶部左侧，调整偏移量
+    lv_obj_set_style_text_font(label1, &lv_font_montserrat_14, 0); // 设置字体大小
+
     // 创建第二个折线图
     chart2 = lv_chart_create(scr);
     lv_obj_set_size(chart2, 300, 150);  // Adjust size as needed
@@ -468,6 +498,14 @@ void create_chart_screen() {
     // 创建第二个系列
     ser2 = lv_chart_add_series(chart2, lv_palette_main(LV_PALETTE_BLUE), LV_CHART_AXIS_PRIMARY_Y);
 
+    //在图表内部定义一个标题
+    lv_obj_t *label2 = lv_label_create(chart2); // 将 label2 放置在 chart2 内部
+    lv_label_set_text(label2, "Humidity"); // 设置标题文本
+    lv_obj_align(label2, LV_ALIGN_OUT_TOP_LEFT, 0, -10); // 相对于 chart1 的顶部左侧，调整偏移量
+    lv_obj_set_style_text_font(label2, &lv_font_montserrat_14, 0); // 设置字体大小
+
+
+
     // 初始化温湿度值
     for (int i = 0; i < MAX_TEMP_VALUES; i++) {
         temp_values[i] = 0;
@@ -487,7 +525,7 @@ void create_chart_screen() {
 }
 
 
-//----------------创建的一个线程来接受服务器发来的数据
+//----------------创建的一个线程来接受服务器发来的数据--------------------
 void* thread_Recv(void* arg)
 {
     //创建套接字
