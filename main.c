@@ -11,6 +11,11 @@
 #include <unistd.h>  // 添加这个头文件以使用 usleep
 
 #define DISP_BUF_SIZE (128 * 1024)
+#define TEMP_UPDATE_INTERVAL 5000 // Temperature update interval in milliseconds
+#define CHART_UPDATE_INTERVAL 10000 // Chart update interval in milliseconds
+#define MAX_TEMP_VALUES 5 
+// Maximum number of temperature values to keep
+
 
 /*************** 
 我创建的内容开始
@@ -76,6 +81,8 @@ void login_event_handler(lv_event_t * e)
     printf("字符串2:%s\n",password);
     if (check_user_credentials(username, password)) {
         show_hello_world_screen();
+        sleep(3);
+        create_chart_screen();
     } else {
         printf("Invalid username or password\n");
     }
@@ -231,6 +238,73 @@ void create_login_screen() {
     lv_textarea_set_one_line(user_ta,true);
     lv_textarea_set_one_line(pass_ta,true);
 }
+
+//===========================温度的折线图==============================
+static lv_obj_t *chart;
+static lv_chart_series_t *ser;
+static int temp_values[MAX_TEMP_VALUES];
+static int temp_index = 0;
+
+static void update_chart(lv_timer_t *timer) {
+    lv_chart_refresh(chart); // 刷新图表以显示更新的数据
+}
+
+
+static void generate_random_temp(lv_timer_t *timer) {
+    int temp = (rand() % 21) + 20; // 生成20到40之间的随机温度
+    temp_values[temp_index] = temp;
+    lv_chart_set_next_value(chart, ser, temp_values[temp_index]);
+    temp_index = (temp_index + 1) % MAX_TEMP_VALUES; // 更新temp_index
+    printf("Generated temperature: %d\n", temp);
+
+    lv_chart_refresh(chart); // 刷新图表以显示新添加的数据
+}
+
+
+void create_chart_screen() {
+    lv_obj_t *scr = lv_scr_act();  // 获取屏幕父对象
+
+    // 创建折线图
+    chart = lv_chart_create(scr);
+    lv_obj_set_size(chart, 600, 120);  // Adjust size as needed
+    lv_obj_align(chart, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_chart_set_type(chart, LV_CHART_TYPE_LINE); // Set chart type to line
+    lv_chart_set_point_count(chart, MAX_TEMP_VALUES); // Set the number of points
+    lv_chart_set_update_mode(chart, LV_CHART_UPDATE_MODE_SHIFT); // Shift when adding new points
+
+  
+     // 设置y轴刻度和标签
+    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 50);
+    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 6, 5, true, 50); // 0-50 with major ticks and labels
+
+    // 设置x轴刻度和标签
+    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, MAX_TEMP_VALUES / 2, MAX_TEMP_VALUES / 2, true, 50);
+    // 设置背景颜色
+    lv_obj_set_style_bg_color(chart, lv_palette_main(0xFFFFFF), LV_PART_MAIN);
+
+    // 去掉背景网格线
+    lv_obj_set_style_bg_opa(chart, LV_OPA_100, LV_PART_MAIN);
+    lv_obj_set_style_line_color(chart, lv_color_hex(0xFFFFFF), LV_PART_TICKS); // 设置刻度线颜色为背景色，从而隐藏它们
+    lv_obj_set_style_size(chart, 0, LV_PART_TICKS); // 设置刻度线的大小为0，从而隐藏它们
+
+
+
+    // 创建系列
+    ser = lv_chart_add_series(chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
+
+    // 初始化温度值
+    for (int i = 0; i < MAX_TEMP_VALUES; i++) {
+        temp_values[i] = 0;
+        lv_chart_set_next_value(chart, ser, temp_values[i]);
+    }
+
+    // 创建定时器来生成随机温度值
+    lv_timer_create(generate_random_temp, TEMP_UPDATE_INTERVAL, NULL);
+
+    // 创建定时器来更新折线图
+    lv_timer_create(update_chart, CHART_UPDATE_INTERVAL, NULL);
+}
+//========================温度折线图结束============================================
 
 
 /*************** 
