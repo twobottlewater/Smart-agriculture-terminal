@@ -9,24 +9,50 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>  // 添加这个头文件以使用 usleep
+#include <sys/socket.h>
+#include <sys/types.h>          /* 网络头文件 */
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 
 #define DISP_BUF_SIZE (128 * 1024)
-#define TEMP_UPDATE_INTERVAL 5000 // Temperature update interval in milliseconds
-#define CHART_UPDATE_INTERVAL 10000 // Chart update interval in milliseconds
-#define MAX_TEMP_VALUES 5 
-// Maximum number of temperature values to keep
+#define TEMP_UPDATE_INTERVAL 5000  // 以毫秒为单位的温度更新间隔
+#define CHART_UPDATE_INTERVAL 10000  // 图表更新间隔以毫秒为单位
+#define MAX_TEMP_VALUES 5 //每组最大数据
+
+
+#define SERVER_IP "192.168.1.160"  //Ubuntu主机服务器端的ip
+#define SERVER_PORT 12000          //Ubuntu主机服务器的端口号
+
+#define CLIENT_IP "192.168.1.161"  //我自己这边端的ip
+#define CLIENT_PORT 20001          //客户端的端口号这个主要用来开发板发
 
 
 /*************** 
 我创建的内容开始
 ***************/
 
-
+//登录界面的
 static lv_obj_t * kb;
- lv_obj_t * user_ta;
- lv_obj_t * pass_ta;
+lv_obj_t * user_ta;
+lv_obj_t * pass_ta;
 static lv_obj_t * pass_vis_btn;
 
+//日常运行界面的
+static lv_obj_t *chart1;
+static lv_obj_t *chart2;
+static lv_obj_t *time_label;
+static lv_obj_t *temp_label;
+static lv_obj_t *humid_label;
+static lv_obj_t *flush_button;
+static lv_obj_t *light_button;
+static lv_chart_series_t *ser1;
+static lv_chart_series_t *ser2;
+static lv_obj_t *chart;
+static lv_chart_series_t *ser;
+static int temp_index = 0;
+static int temp_values[MAX_TEMP_VALUES];
+static int humid_values[MAX_TEMP_VALUES];
 
 
 bool check_user_credentials(const char* username, const char* password) {
@@ -61,7 +87,7 @@ bool check_user_credentials(const char* username, const char* password) {
     return found;
 }
 
-
+//------------展示hello world--------
 void show_hello_world_screen() {
     lv_obj_t * scr = lv_scr_act();
     lv_obj_clean(scr);  // 清除当前屏幕上的所有对象
@@ -123,7 +149,7 @@ void register_event_handler(lv_event_t * e)
 
 
 
-
+//--键盘事件函数---
 static void ta_event_cb(lv_event_t * e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * ta = lv_event_get_target(e);
@@ -150,7 +176,26 @@ void pass_vis_btn_event_cb(lv_event_t * e) {
         lv_label_set_text(lv_obj_get_child(pass_vis_btn, 0), LV_SYMBOL_EYE_CLOSE);
     }
 }
+//灯和机器人的按钮事件 按钮点击事件回调函数
+static void flush_btn_event_cb(lv_event_t * e) {
+    lv_obj_t * btn = lv_event_get_target(e);
+    const char * label_text = lv_label_get_text(lv_obj_get_child(btn, 0));
+    if(strcmp(label_text, "ON") == 0) {
+        lv_label_set_text(lv_obj_get_child(btn, 0), "OFF");
+    } else {
+        lv_label_set_text(lv_obj_get_child(btn, 0), "ON");
+    }
+}
 
+static void light_btn_event_cb(lv_event_t * e) {
+    lv_obj_t * btn = lv_event_get_target(e);
+    const char * label_text = lv_label_get_text(lv_obj_get_child(btn, 0));
+    if(strcmp(label_text, "ON") == 0) {
+        lv_label_set_text(lv_obj_get_child(btn, 0), "OFF");
+    } else {
+        lv_label_set_text(lv_obj_get_child(btn, 0), "ON");
+    }
+}
 
 
 
@@ -240,72 +285,246 @@ void create_login_screen() {
 }
 
 //===========================温度的折线图==============================
-static lv_obj_t *chart;
-static lv_chart_series_t *ser;
-static int temp_values[MAX_TEMP_VALUES];
-static int temp_index = 0;
-
-static void update_chart(lv_timer_t *timer) {
-    lv_chart_refresh(chart); // 刷新图表以显示更新的数据
+static void update_chart(lv_timer_t * timer) {
+    for (int i = 0; i < MAX_TEMP_VALUES; i++) {
+        lv_chart_set_next_value(chart1, ser1, temp_values[i]);
+        lv_chart_set_next_value(chart2, ser2, humid_values[i]);
+    }
 }
 
 
+//----------------时间获取函数-------------------
+static void update_time(lv_timer_t * timer) {
+    time_t raw_time;
+    struct tm *time_info;
+    char time_buffer[64];
+
+    time(&raw_time);
+    time_info = localtime(&raw_time);
+    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", time_info);
+
+    lv_label_set_text(time_label, time_buffer);
+}
+
+
+
+//-----------随机生成温度值的函数----------------------
 static void generate_random_temp(lv_timer_t *timer) {
-    int temp = (rand() % 21) + 20; // 生成20到40之间的随机温度
-    temp_values[temp_index] = temp;
-    lv_chart_set_next_value(chart, ser, temp_values[temp_index]);
-    temp_index = (temp_index + 1) % MAX_TEMP_VALUES; // 更新temp_index
-    printf("Generated temperature: %d\n", temp);
-
-    lv_chart_refresh(chart); // 刷新图表以显示新添加的数据
+   for (int i = 0; i < MAX_TEMP_VALUES; i++) {
+        temp_values[i] = rand() % 51; // Random temperature between 0 and 50
+        humid_values[i] = rand() % 101; // Random humidity between 0 and 100
+    }
+    lv_label_set_text_fmt(temp_label, "temperature data: %d°C", temp_values[MAX_TEMP_VALUES - 1]);
+    lv_label_set_text_fmt(humid_label, "Humidity data: %d%%", humid_values[MAX_TEMP_VALUES - 1]);
 }
+
 
 
 void create_chart_screen() {
-    lv_obj_t *scr = lv_scr_act();  // 获取屏幕父对象
+     lv_obj_t *scr = lv_scr_act();  // 获取屏幕父对象
 
-    // 创建折线图
-    chart = lv_chart_create(scr);
-    lv_obj_set_size(chart, 600, 120);  // Adjust size as needed
-    lv_obj_align(chart, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_chart_set_type(chart, LV_CHART_TYPE_LINE); // Set chart type to line
-    lv_chart_set_point_count(chart, MAX_TEMP_VALUES); // Set the number of points
-    lv_chart_set_update_mode(chart, LV_CHART_UPDATE_MODE_SHIFT); // Shift when adding new points
+    // 创建时间标签
+    time_label = lv_label_create(scr);
+    lv_label_set_text(time_label, "Loading...");
+    lv_obj_align(time_label, LV_ALIGN_TOP_MID, 0, 10); // Top center with some offset
 
-  
-     // 设置y轴刻度和标签
-    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 50);
-    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 6, 5, true, 50); // 0-50 with major ticks and labels
+    // 创建温湿度数据标签
+    temp_label = lv_label_create(scr);
+    lv_label_set_text(temp_label, "temperature data: xxx°C");
+    lv_obj_align(temp_label, LV_ALIGN_TOP_LEFT, 10, 50); // Top left with some offset
+
+    humid_label = lv_label_create(scr);
+    lv_label_set_text(humid_label, "Humidity data: xxx%");
+    lv_obj_align(humid_label, LV_ALIGN_TOP_LEFT, 10, 80); // Top left with some offset
+
+    // 创建一个水平容器用于放置标签和按钮 -----机器人按钮
+    lv_obj_t * flush_cont = lv_obj_create(scr);
+    lv_obj_set_width(flush_cont, LV_SIZE_CONTENT);
+    lv_obj_set_height(flush_cont, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(flush_cont, LV_FLEX_FLOW_ROW); // 使用水平排列
+    lv_obj_set_style_pad_all(flush_cont, 10, 0); // 设置容器内边距
+    lv_obj_align(flush_cont, LV_ALIGN_TOP_RIGHT, -20, 100);
+
+    lv_obj_t * flush_label = lv_label_create(flush_cont);
+    lv_label_set_text(flush_label, "Watering robot: ");
+    lv_obj_set_style_text_font(flush_label, LV_FONT_MONTSERRAT_18 , LV_PART_MAIN); // 设置字体大小
+    
+    flush_button = lv_btn_create(flush_cont);
+    lv_obj_set_size(flush_button, 100, 50); // 设置按钮大小
+    lv_obj_t * flush_btn_label = lv_label_create(flush_button);
+    lv_label_set_text(flush_btn_label, "ON");
+    lv_obj_add_event_cb(flush_button, flush_btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+    // 创建一个水平容器用于放置标签和按钮-------灯光按钮
+    lv_obj_t * light_cont = lv_obj_create(scr);
+    lv_obj_set_width(light_cont, LV_SIZE_CONTENT);
+    lv_obj_set_height(light_cont, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(light_cont, LV_FLEX_FLOW_ROW); // 使用水平排列
+    lv_obj_set_style_pad_all(light_cont, 5, 0); // 设置容器内边距
+    lv_obj_align(light_cont, LV_ALIGN_TOP_RIGHT, -10, 100);
+
+    lv_obj_t * light_label = lv_label_create(light_cont);
+    lv_label_set_text(light_label, "Light: ");
+    lv_obj_set_style_text_font(light_label, LV_FONT_DEFAULT, 0); // 设置字体大小
+    
+    light_button = lv_btn_create(light_cont);
+    lv_obj_set_size(light_button, 60, 30); // 设置按钮大小
+    lv_obj_t * light_btn_label = lv_label_create(light_button);
+    lv_label_set_text(light_btn_label, "ON");
+    lv_obj_add_event_cb(light_button, light_btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+
+    // 创建第一个折线图
+    chart1 = lv_chart_create(scr);
+    lv_obj_set_size(chart1, 300, 120);  // Adjust size as needed
+    lv_obj_align(chart1, LV_ALIGN_BOTTOM_LEFT, 10, -10); // Bottom left with some offset
+    lv_chart_set_type(chart1, LV_CHART_TYPE_LINE); // Set chart type to line
+    lv_chart_set_point_count(chart1, MAX_TEMP_VALUES); // Set the number of points
+    lv_chart_set_update_mode(chart1, LV_CHART_UPDATE_MODE_SHIFT); // Shift when adding new points
+
+    // 设置y轴刻度和标签
+    lv_chart_set_range(chart1, LV_CHART_AXIS_PRIMARY_Y, 0, 50);
+    lv_chart_set_axis_tick(chart1, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 6, 5, true, 50); // 0-50 with major ticks and labels
 
     // 设置x轴刻度和标签
-    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, MAX_TEMP_VALUES / 2, MAX_TEMP_VALUES / 2, true, 50);
+    lv_chart_set_axis_tick(chart1, LV_CHART_AXIS_PRIMARY_X, 10, 5, MAX_TEMP_VALUES / 2, MAX_TEMP_VALUES / 2, true, 50);
+
     // 设置背景颜色
-    lv_obj_set_style_bg_color(chart, lv_palette_main(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(chart1, lv_palette_main(LV_PALETTE_LIGHT_BLUE), LV_PART_MAIN);
 
     // 去掉背景网格线
-    lv_obj_set_style_bg_opa(chart, LV_OPA_100, LV_PART_MAIN);
-    lv_obj_set_style_line_color(chart, lv_color_hex(0xFFFFFF), LV_PART_TICKS); // 设置刻度线颜色为背景色，从而隐藏它们
-    lv_obj_set_style_size(chart, 0, LV_PART_TICKS); // 设置刻度线的大小为0，从而隐藏它们
+    lv_obj_set_style_bg_opa(chart1, LV_OPA_100, LV_PART_MAIN);
+    lv_obj_set_style_line_color(chart1, lv_color_hex(0xFFFFFF), LV_PART_TICKS); // 设置刻度线颜色为背景色，从而隐藏它们
+    lv_obj_set_style_size(chart1, 0, LV_PART_TICKS); // 设置刻度线的大小为0，从而隐藏它们
 
+    // 创建第一个系列
+    ser1 = lv_chart_add_series(chart1, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
 
+    // 创建第二个折线图
+    chart2 = lv_chart_create(scr);
+    lv_obj_set_size(chart2, 300, 120);  // Adjust size as needed
+    lv_obj_align(chart2, LV_ALIGN_BOTTOM_RIGHT, -10, -10); // Bottom right with some offset
+    lv_chart_set_type(chart2, LV_CHART_TYPE_LINE); // Set chart type to line
+    lv_chart_set_point_count(chart2, MAX_TEMP_VALUES); // Set the number of points
+    lv_chart_set_update_mode(chart2, LV_CHART_UPDATE_MODE_SHIFT); // Shift when adding new points
 
-    // 创建系列
-    ser = lv_chart_add_series(chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
+    // 设置y轴刻度和标签
+    lv_chart_set_range(chart2, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+    lv_chart_set_axis_tick(chart2, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 6, 5, true, 50); // 0-100 with major ticks and labels
 
-    // 初始化温度值
+    // 设置x轴刻度和标签
+    lv_chart_set_axis_tick(chart2, LV_CHART_AXIS_PRIMARY_X, 10, 5, MAX_TEMP_VALUES / 2, MAX_TEMP_VALUES / 2, true, 50);
+
+    // 设置背景颜色
+    lv_obj_set_style_bg_color(chart2, lv_palette_main(LV_PALETTE_LIGHT_GREEN), LV_PART_MAIN);
+
+    // 去掉背景网格线
+    lv_obj_set_style_bg_opa(chart2, LV_OPA_100, LV_PART_MAIN);
+    lv_obj_set_style_line_color(chart2, lv_color_hex(0xFFFFFF), LV_PART_TICKS); // 设置刻度线颜色为背景色，从而隐藏它们
+    lv_obj_set_style_size(chart2, 0, LV_PART_TICKS); // 设置刻度线的大小为0，从而隐藏它们
+
+    // 创建第二个系列
+    ser2 = lv_chart_add_series(chart2, lv_palette_main(LV_PALETTE_BLUE), LV_CHART_AXIS_PRIMARY_Y);
+
+    // 初始化温湿度值
     for (int i = 0; i < MAX_TEMP_VALUES; i++) {
         temp_values[i] = 0;
-        lv_chart_set_next_value(chart, ser, temp_values[i]);
+        humid_values[i] = 0;
+        lv_chart_set_next_value(chart1, ser1, temp_values[i]);
+        lv_chart_set_next_value(chart2, ser2, humid_values[i]);
     }
 
-    // 创建定时器来生成随机温度值
+    // 创建定时器来生成随机温湿度值
     lv_timer_create(generate_random_temp, TEMP_UPDATE_INTERVAL, NULL);
 
     // 创建定时器来更新折线图
     lv_timer_create(update_chart, CHART_UPDATE_INTERVAL, NULL);
-}
-//========================温度折线图结束============================================
 
+    // 创建定时器来更新时间标签
+    lv_timer_create(update_time, 1000, NULL); // 每秒更新一次时间
+}
+
+
+//----------------创建的一个线程来接受服务器发来的数据
+void* thread_Recv(void* arg)
+{
+    //创建套接字
+    int udp_recv_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (udp_recv_socket == -1)
+    {
+        perror("socket");
+        return NULL;
+    }
+
+    // 设置端口号复用--重复利用
+    int opt = 1;
+    setsockopt(udp_recv_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in ownAddr;
+    ownAddr.sin_family = AF_INET;
+    ownAddr.sin_port = htons(CLIENT_PORT);
+    ownAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(udp_recv_socket, (struct sockaddr *)&ownAddr, sizeof(ownAddr)) == -1)
+    {
+        perror("bind");
+        close(udp_recv_socket);
+        return NULL;
+    }
+
+    while (1)
+    {
+        char buf[1024] = {0};
+        struct sockaddr_in addr;
+        int addrlen = sizeof(addr);
+        ssize_t ret = recvfrom(udp_recv_socket, buf, sizeof(buf), 0, (struct sockaddr *)&addr, &addrlen);
+        if (ret == -1)
+        {
+            perror("recvfrom");
+            continue;
+        }
+        printf("Received: %s\n", buf);
+    }
+
+    close(udp_recv_socket);
+    return NULL;
+
+}
+
+//--------------发送线程的函数-----------------------
+void* thread_SenTo(void* arg)
+{
+    //1.创建套接字
+    int socketfd = socket(AF_INET,SOCK_DGRAM,0);
+    if(socketfd == -1)
+    {
+        perror("socket");
+        return -1;
+    }
+
+    //绑定发送端的对方的ip和端口
+    struct sockaddr_in dest_addr;
+    dest_addr.sin_family = AF_INET;
+    dest_addr.sin_port = htons(SERVER_PORT);
+    dest_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
+    while (1)
+    {
+        int value;
+        printf("请输入要发送的数据：");
+        scanf("%d",&value);
+
+        int ret = sendto(socketfd, &value, sizeof(value),0,(struct sockaddr*)&dest_addr,sizeof(dest_addr));
+        if(ret == -1)
+        {
+            perror("sendto error");
+            break;
+        }
+
+        printf("sendto ret:%d\n",ret);
+    }
+
+    close(socketfd);
+}
 
 /*************** 
 我创建的内容结束
@@ -363,14 +582,22 @@ int main(void)
 
     //我的 创建按钮的使用
     // 登录界面
-     create_login_screen();
+    create_login_screen();
 
-    
+    //创建接收服务器数据的线程
+    pthread_t rec_id; // 创建线程标识符
+	pthread_create(&rec_id, NULL, thread_Recv, NULL);
+
+    //创建发送数据到服务器的线程
+    pthread_t senFuntion_id; // 创建线程标识符
+	pthread_create(&senFuntion_id, NULL, thread_SenTo, NULL);
+   
     /*Create a Demo*/
     //lv_demo_widgets();//屏蔽掉demo
 
     /*Handle LitlevGL tasks (tickless mode)*/
-    while(1) {
+    while(1) 
+    {
         lv_timer_handler();//轮询方式处理事件
         usleep(5000);
     }
