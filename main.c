@@ -294,6 +294,7 @@ static void update_chart(lv_timer_t * timer) {
 
 
 //----------------时间获取函数-------------------
+
 static void update_time(lv_timer_t * timer) {
     time_t raw_time;
     struct tm *time_info;
@@ -305,7 +306,6 @@ static void update_time(lv_timer_t * timer) {
 
     lv_label_set_text(time_label, time_buffer);
 }
-
 
 
 //-----------随机生成温度值的函数----------------------
@@ -347,12 +347,15 @@ void create_chart_screen() {
 
     lv_obj_t * flush_label = lv_label_create(flush_cont);
     lv_label_set_text(flush_label, "Watering robot: ");
-    lv_obj_set_style_text_font(flush_label, LV_FONT_MONTSERRAT_18 , LV_PART_MAIN); // 设置字体大小
+    lv_obj_set_style_text_font(flush_label,  &lv_font_montserrat_24 , 0); // 设置字体大小
+    lv_obj_set_style_text_align(flush_label, LV_TEXT_ALIGN_CENTER,NULL); // 设置文本居中对齐
     
     flush_button = lv_btn_create(flush_cont);
     lv_obj_set_size(flush_button, 100, 50); // 设置按钮大小
     lv_obj_t * flush_btn_label = lv_label_create(flush_button);
     lv_label_set_text(flush_btn_label, "ON");
+    lv_obj_set_style_text_font(flush_btn_label, &lv_font_montserrat_24, 0); // 设置按钮字体大小
+    lv_obj_set_style_text_align(flush_btn_label, LV_TEXT_ALIGN_CENTER,NULL); // 设置文本居中对齐
     lv_obj_add_event_cb(flush_button, flush_btn_event_cb, LV_EVENT_CLICKED, NULL);
 
     // 创建一个水平容器用于放置标签和按钮-------灯光按钮
@@ -360,17 +363,21 @@ void create_chart_screen() {
     lv_obj_set_width(light_cont, LV_SIZE_CONTENT);
     lv_obj_set_height(light_cont, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(light_cont, LV_FLEX_FLOW_ROW); // 使用水平排列
-    lv_obj_set_style_pad_all(light_cont, 5, 0); // 设置容器内边距
-    lv_obj_align(light_cont, LV_ALIGN_TOP_RIGHT, -10, 100);
+    lv_obj_set_style_pad_all(light_cont, 10, 0); // 设置容器内边距
+    lv_obj_align(light_cont, LV_ALIGN_TOP_RIGHT, -20, 200);
 
     lv_obj_t * light_label = lv_label_create(light_cont);
     lv_label_set_text(light_label, "Light: ");
-    lv_obj_set_style_text_font(light_label, LV_FONT_DEFAULT, 0); // 设置字体大小
+    lv_obj_set_style_text_font(light_label, &lv_font_montserrat_24, 0); // 设置字体大小
+    lv_obj_set_style_text_align(light_label, LV_TEXT_ALIGN_CENTER,NULL); // 设置文本居中对齐
+
     
     light_button = lv_btn_create(light_cont);
-    lv_obj_set_size(light_button, 60, 30); // 设置按钮大小
+    lv_obj_set_size(light_button, 100, 50); // 设置按钮大小
     lv_obj_t * light_btn_label = lv_label_create(light_button);
     lv_label_set_text(light_btn_label, "ON");
+    lv_obj_set_style_text_font(light_btn_label, &lv_font_montserrat_24, 0); // 设置按钮字体大小
+    lv_obj_set_style_text_align(light_btn_label, LV_TEXT_ALIGN_CENTER,NULL); // 设置文本居中对齐
     lv_obj_add_event_cb(light_button, light_btn_event_cb, LV_EVENT_CLICKED, NULL);
 
 
@@ -483,6 +490,17 @@ void* thread_Recv(void* arg)
             perror("recvfrom");
             continue;
         }
+
+        // 得判断一下等下来的数据是不是时间数据
+        if (strncmp(buf, "TIME:", 5) == 0)
+        {
+            printf("b捕捉到时间数据\n");
+            //  // 提取时间数据并传递给 update_time_once 函数
+            // char *received_time_str = buf + 5;
+            // update_time_once(received_time_str);
+           
+        }
+
         printf("Received: %s\n", buf);
     }
 
