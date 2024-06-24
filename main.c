@@ -89,13 +89,24 @@ bool check_user_credentials(const char* username, const char* password) {
 
 //------------展示hello world--------
 void show_hello_world_screen() {
-    lv_obj_t * scr = lv_scr_act();
+   lv_obj_t * scr = lv_scr_act();
     lv_obj_clean(scr);  // 清除当前屏幕上的所有对象
 
-    lv_obj_t * label = lv_label_create(scr);
+    // 创建一个容器，作为文本的背景
+    lv_obj_t * cont = lv_obj_create(scr);
+    lv_obj_set_size(cont, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(cont, 20, 0); // 内部填充
+    lv_obj_set_style_bg_color(cont, lv_color_hex(0xFFFFFF), 0); // 背景颜色
+    lv_obj_set_style_border_width(cont, 2, 0); // 边框宽度
+    lv_obj_set_style_border_color(cont, lv_color_hex(0x000000), 0); // 边框颜色
+    lv_obj_set_style_radius(cont, 10, 0); // 圆角半径
+    lv_obj_center(cont);
+
+    // 创建标签，并将其作为容器的子对象
+    lv_obj_t * label = lv_label_create(cont);
     lv_label_set_text(label, "Smart Agriculture \nMonitoring Center");
     lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0); // 设置字体大小
-    lv_obj_center(label);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0); // 居中对齐
 }
 
 
@@ -108,7 +119,7 @@ void login_event_handler(lv_event_t * e)
     printf("字符串2:%s\n",password);
     if (check_user_credentials(username, password)) {
         show_hello_world_screen();
-        sleep(3);
+        sleep(1);
         create_chart_screen();
     } else {
         printf("Invalid username or password\n");
