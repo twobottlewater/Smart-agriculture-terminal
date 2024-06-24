@@ -98,15 +98,21 @@ void show_hello_world_screen() {
     lv_obj_set_style_pad_all(cont, 20, 0); // 内部填充
     lv_obj_set_style_bg_color(cont, lv_color_hex(0xFFFFFF), 0); // 背景颜色
     lv_obj_set_style_border_width(cont, 2, 0); // 边框宽度
-    lv_obj_set_style_border_color(cont, lv_color_hex(0x000000), 0); // 边框颜色
+    lv_obj_set_style_border_color(cont, lv_color_hex(0xFFFFFF), 0); // 边框颜色
     lv_obj_set_style_radius(cont, 10, 0); // 圆角半径
     lv_obj_center(cont);
+
+    // 添加阴影效果
+    lv_obj_set_style_shadow_width(cont, 8, 0); // 阴影宽度
+    lv_obj_set_style_shadow_color(cont, lv_color_hex(0x808080), 0); // 阴影颜色
 
     // 创建标签，并将其作为容器的子对象
     lv_obj_t * label = lv_label_create(cont);
     lv_label_set_text(label, "Smart Agriculture \nMonitoring Center");
     lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0); // 设置字体大小
+    lv_obj_set_style_text_color(label, lv_color_hex(0xD32F2F), 0); // 设置字体颜色为红色
     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0); // 居中对齐
+     lv_obj_center(label);
 }
 
 
@@ -413,7 +419,7 @@ void create_chart_screen() {
     // 创建第一个折线图
     chart1 = lv_chart_create(scr);
     lv_obj_set_size(chart1, 300, 150);  // Adjust size as needed
-    lv_obj_align(chart1, LV_ALIGN_BOTTOM_LEFT, 30, -10); // Bottom left with some offset
+    lv_obj_align(chart1, LV_ALIGN_BOTTOM_LEFT, 38, -10); // Bottom left with some offset
     lv_chart_set_type(chart1, LV_CHART_TYPE_LINE); //设置图表类型为折线图
     lv_chart_set_point_count(chart1, MAX_TEMP_VALUES); // Set the number of points
     lv_chart_set_update_mode(chart1, LV_CHART_UPDATE_MODE_SHIFT); // Shift when adding new points
