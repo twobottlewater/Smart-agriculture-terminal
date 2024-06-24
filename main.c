@@ -93,7 +93,8 @@ void show_hello_world_screen() {
     lv_obj_clean(scr);  // 清除当前屏幕上的所有对象
 
     lv_obj_t * label = lv_label_create(scr);
-    lv_label_set_text(label, "Hello, World!");
+    lv_label_set_text(label, "Smart Agriculture \nMonitoring Center");
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0); // 设置字体大小
     lv_obj_center(label);
 }
 
@@ -342,6 +343,7 @@ void create_chart_screen() {
     // 创建时间标签
     time_label = lv_label_create(scr);
     lv_label_set_text(time_label, "Loading...");
+    lv_obj_set_style_text_font(time_label, &lv_font_montserrat_24, 0); // 设置字体大小
     lv_obj_align(time_label, LV_ALIGN_TOP_MID, 0, 10); // Top center with some offset
 
     // 创建温湿度数据标签
@@ -399,9 +401,9 @@ void create_chart_screen() {
 
     // 创建第一个折线图
     chart1 = lv_chart_create(scr);
-    lv_obj_set_size(chart1, 300, 120);  // Adjust size as needed
-    lv_obj_align(chart1, LV_ALIGN_BOTTOM_LEFT, 10, -10); // Bottom left with some offset
-    lv_chart_set_type(chart1, LV_CHART_TYPE_LINE); // Set chart type to line
+    lv_obj_set_size(chart1, 300, 150);  // Adjust size as needed
+    lv_obj_align(chart1, LV_ALIGN_BOTTOM_LEFT, 30, -10); // Bottom left with some offset
+    lv_chart_set_type(chart1, LV_CHART_TYPE_LINE); //设置图表类型为折线图
     lv_chart_set_point_count(chart1, MAX_TEMP_VALUES); // Set the number of points
     lv_chart_set_update_mode(chart1, LV_CHART_UPDATE_MODE_SHIFT); // Shift when adding new points
 
@@ -425,7 +427,7 @@ void create_chart_screen() {
 
     // 创建第二个折线图
     chart2 = lv_chart_create(scr);
-    lv_obj_set_size(chart2, 300, 120);  // Adjust size as needed
+    lv_obj_set_size(chart2, 300, 150);  // Adjust size as needed
     lv_obj_align(chart2, LV_ALIGN_BOTTOM_RIGHT, -10, -10); // Bottom right with some offset
     lv_chart_set_type(chart2, LV_CHART_TYPE_LINE); // Set chart type to line
     lv_chart_set_point_count(chart2, MAX_TEMP_VALUES); // Set the number of points
