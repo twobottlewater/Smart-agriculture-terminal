@@ -307,6 +307,22 @@ static void update_time(lv_timer_t * timer) {
     lv_label_set_text(time_label, time_buffer);
 }
 
+void update_system_time(const char *datetime) {
+    char command[64];
+
+    // Construct the command string
+    snprintf(command, sizeof(command), "date -s \"%s\"", datetime);
+
+    // Execute the command to update system time
+    int result = system(command);
+
+    if (result == -1) {
+        perror("system");
+    } else {
+        printf("System time updated to: %s\n", datetime);
+    }
+}
+
 
 //-----------随机生成温度值的函数----------------------
 static void generate_random_temp(lv_timer_t *timer) {
@@ -495,10 +511,17 @@ void* thread_Recv(void* arg)
         if (strncmp(buf, "TIME:", 5) == 0)
         {
             printf("b捕捉到时间数据\n");
+            const char *time_part = buf + 5;
             //  // 提取时间数据并传递给 update_time_once 函数
             // char *received_time_str = buf + 5;
             // update_time_once(received_time_str);
-           
+            struct tm received_time_info;
+            if (strptime(time_part, "%Y-%m-%d %H:%M:%S", &received_time_info) == NULL)
+            {
+            perror("strptime");
+            return;
+            }
+           update_system_time(time_part);
         }
 
         printf("Received: %s\n", buf);
@@ -601,7 +624,7 @@ int main(void)
     //我的 创建按钮的使用
     // 登录界面
     create_login_screen();
-
+    //update_system_time("2024-06-25 15:30:00");
     //创建接收服务器数据的线程
     pthread_t rec_id; // 创建线程标识符
 	pthread_create(&rec_id, NULL, thread_Recv, NULL);
