@@ -14,6 +14,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "cJSON.h" // cJSON库头文件，需提前安装和包含
+#include <netdb.h>
+
 
 
 #define DISP_BUF_SIZE (128 * 1024)
@@ -31,227 +33,240 @@
 
 
 
-/*************** 
-我创建的内容开始
-***************/
-int led_fd;//操作灯的文件描述符
-int flush_button_state = 0; // 0: off, 1: on
-int light_button_state = 0; // 0: off, 1: on
+    /*************** 
+    我创建的内容开始
+    ***************/
+    int led_fd;//操作灯的文件描述符
+    int flush_button_state = 0; // 0: off, 1: on
+    int light_button_state = 0; // 0: off, 1: on
 
-// 定义灯控制函数
-void control_led(int led, int state) {
-    char buf[2];
-    buf[0] = state; // 亮灭状态
-    buf[1] = led;   // 第几盏灯
-    write(led_fd, buf, sizeof(buf));
-}
-
-//登录界面的
-static lv_obj_t * kb;
-lv_obj_t * user_ta;
-lv_obj_t * pass_ta;
-static lv_obj_t * pass_vis_btn;
-
-//日常运行界面的
-static lv_obj_t *chart1;
-static lv_obj_t *chart2;
-static lv_obj_t *time_label;
-static lv_obj_t *temp_label;
-static lv_obj_t *humid_label;
-static lv_obj_t *lux_label;
-static lv_obj_t *flush_button;
-static lv_obj_t *light_button;
-static lv_chart_series_t *ser1;
-static lv_chart_series_t *ser2;
-static lv_obj_t *chart;
-static lv_chart_series_t *ser;
-static int temp_index = 0;
-static int temp_values[MAX_TEMP_VALUES];
-static int humid_values[MAX_TEMP_VALUES];
-static int lux_values[MAX_TEMP_VALUES];
-
-//把两个按钮的文本设置独立一下
-lv_obj_t *flush_btn_label;
-lv_obj_t *light_btn_label;
-
-bool check_user_credentials(const char* username, const char* password) {
-    int fd = open("./mima.txt", O_RDONLY);
-    if (fd < 0) {
-        perror("Failed to open file for reading");
-        return false;
+    // 定义灯控制函数
+    void control_led(int led, int state) {
+        char buf[2];
+        buf[0] = state; // 亮灭状态
+        buf[1] = led;   // 第几盏灯
+        write(led_fd, buf, sizeof(buf));
     }
 
-    char buffer[256];
-    ssize_t bytes_read;
-    char file_username[128];
-    char file_password[128];
-    bool found = false;
+    //登录界面的
+    static lv_obj_t * kb;
+    lv_obj_t * user_ta;
+    lv_obj_t * pass_ta;
+    static lv_obj_t * pass_vis_btn;
 
-    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[bytes_read] = '\0';
-        char *line = strtok(buffer, "\n");
-        while (line != NULL) {
-            if (sscanf(line, "%127[^@]@%127[^\n]", file_username, file_password) == 2) {
-                if (strcmp(username, file_username) == 0 && strcmp(password, file_password) == 0) {
-                    found = true;
-                    break;
-                }
-            }
-            line = strtok(NULL, "\n");
+    //日常运行界面的
+    static lv_obj_t *chart1;
+    static lv_obj_t *chart2;
+    static lv_obj_t *time_label;
+    static lv_obj_t *temp_label;
+    static lv_obj_t *humid_label;
+    static lv_obj_t *lux_label;
+    static lv_obj_t *flush_button;
+    static lv_obj_t *light_button;
+    static lv_chart_series_t *ser1;
+    static lv_chart_series_t *ser2;
+    static lv_obj_t *chart;
+    static lv_chart_series_t *ser;
+    lv_obj_t *city_label;
+    lv_obj_t *wind_power_label;
+    lv_obj_t *rain_label;
+    static int temp_index = 0;
+    static int temp_values[MAX_TEMP_VALUES];
+    static int humid_values[MAX_TEMP_VALUES];
+    static int lux_values[MAX_TEMP_VALUES];
+
+    //来一个结构体
+    // 天气数据结构
+    typedef struct 
+    {
+        char city[32];
+        char wind_power[32];
+        char rain[8];
+    } WeatherData;
+    //把两个按钮的文本设置独立一下
+    lv_obj_t *flush_btn_label;
+    lv_obj_t *light_btn_label;
+
+    bool check_user_credentials(const char* username, const char* password) {
+        int fd = open("./mima.txt", O_RDONLY);
+        if (fd < 0) {
+            perror("Failed to open file for reading");
+            return false;
         }
-        if (found) break;
+
+        char buffer[256];
+        ssize_t bytes_read;
+        char file_username[128];
+        char file_password[128];
+        bool found = false;
+
+        while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+            buffer[bytes_read] = '\0';
+            char *line = strtok(buffer, "\n");
+            while (line != NULL) {
+                if (sscanf(line, "%127[^@]@%127[^\n]", file_username, file_password) == 2) {
+                    if (strcmp(username, file_username) == 0 && strcmp(password, file_password) == 0) {
+                        found = true;
+                        break;
+                    }
+                }
+                line = strtok(NULL, "\n");
+            }
+            if (found) break;
+        }
+
+        close(fd);
+        return found;
     }
 
-    close(fd);
-    return found;
-}
+    //------------展示hello world--------
+    void show_hello_world_screen() 
+    {
+    lv_obj_t * scr = lv_scr_act();
+        lv_obj_clean(scr);  // 清除当前屏幕上的所有对象
 
-//------------展示hello world--------
-void show_hello_world_screen() 
-{
-   lv_obj_t * scr = lv_scr_act();
-    lv_obj_clean(scr);  // 清除当前屏幕上的所有对象
+        // 创建一个容器，作为文本的背景
+        lv_obj_t * cont = lv_obj_create(scr);
+        lv_obj_set_size(cont, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_all(cont, 20, 0); // 内部填充
+        lv_obj_set_style_bg_color(cont, lv_color_hex(0xFFFFFF), 0); // 背景颜色
+        lv_obj_set_style_border_width(cont, 2, 0); // 边框宽度
+        lv_obj_set_style_border_color(cont, lv_color_hex(0xFFFFFF), 0); // 边框颜色
+        lv_obj_set_style_radius(cont, 10, 0); // 圆角半径
+        lv_obj_center(cont);
 
-    // 创建一个容器，作为文本的背景
-    lv_obj_t * cont = lv_obj_create(scr);
-    lv_obj_set_size(cont, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(cont, 20, 0); // 内部填充
-    lv_obj_set_style_bg_color(cont, lv_color_hex(0xFFFFFF), 0); // 背景颜色
-    lv_obj_set_style_border_width(cont, 2, 0); // 边框宽度
-    lv_obj_set_style_border_color(cont, lv_color_hex(0xFFFFFF), 0); // 边框颜色
-    lv_obj_set_style_radius(cont, 10, 0); // 圆角半径
-    lv_obj_center(cont);
+        // 添加阴影效果
+        lv_obj_set_style_shadow_width(cont, 8, 0); // 阴影宽度
+        lv_obj_set_style_shadow_color(cont, lv_color_hex(0x808080), 0); // 阴影颜色
 
-    // 添加阴影效果
-    lv_obj_set_style_shadow_width(cont, 8, 0); // 阴影宽度
-    lv_obj_set_style_shadow_color(cont, lv_color_hex(0x808080), 0); // 阴影颜色
-
-    // 创建标签，并将其作为容器的子对象
-    lv_obj_t * label = lv_label_create(cont);
-    lv_label_set_text(label, "Smart Agriculture \nMonitoring Center");
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0); // 设置字体大小
-    lv_obj_set_style_text_color(label, lv_color_hex(0xD32F2F), 0); // 设置字体颜色为红色
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0); // 居中对齐
-     lv_obj_center(label);
-}
-
-
-//登录事件回调函数
-void login_event_handler(lv_event_t * e)
-{
-    const char * username = lv_textarea_get_text(user_ta);
-    const char *password = lv_textarea_get_text(pass_ta);
-    printf("字符串1:%s\n",username);
-    printf("字符串2:%s\n",password);
-    if (check_user_credentials(username, password)) {
-        show_hello_world_screen();
-        sleep(1);
-        create_chart_screen();
-    } else {
-        printf("Invalid username or password\n");
-    }
-    // Implement login logic here
-   // printf(" login-key has been passed\n");
-}
-
-// 注册事件
-void register_event_handler(lv_event_t * e) 
-{
-    const char * username = lv_textarea_get_text(user_ta);
-    const char *password = lv_textarea_get_text(pass_ta);
-    int fd = open("mima.txt", O_WRONLY | O_CREAT | O_APPEND, 0777);
-    if (fd < 0) {
-        perror("Failed to open file for writing");
-        return;
+        // 创建标签，并将其作为容器的子对象
+        lv_obj_t * label = lv_label_create(cont);
+        lv_label_set_text(label, "Smart Agriculture \nMonitoring Center");
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0); // 设置字体大小
+        lv_obj_set_style_text_color(label, lv_color_hex(0xD32F2F), 0); // 设置字体颜色为红色
+        lv_obj_align(label, LV_ALIGN_CENTER, 0, 0); // 居中对齐
+        lv_obj_center(label);
     }
 
-    if (lseek(fd, 0, SEEK_END) > 0) {  // Check if file is not empty
-        if (write(fd, "\n", 1) != 1) {  // Write a newline before appending new credentials
-            perror("Failed to write newline");
-            close(fd);
+
+    //登录事件回调函数
+    void login_event_handler(lv_event_t * e)
+    {
+        const char * username = lv_textarea_get_text(user_ta);
+        const char *password = lv_textarea_get_text(pass_ta);
+        printf("字符串1:%s\n",username);
+        printf("字符串2:%s\n",password);
+        if (check_user_credentials(username, password)) {
+            show_hello_world_screen();
+            sleep(1);
+            create_chart_screen();
+        } else {
+            printf("Invalid username or password\n");
+        }
+        // Implement login logic here
+    // printf(" login-key has been passed\n");
+    }
+
+    // 注册事件
+    void register_event_handler(lv_event_t * e) 
+    {
+        const char * username = lv_textarea_get_text(user_ta);
+        const char *password = lv_textarea_get_text(pass_ta);
+        int fd = open("mima.txt", O_WRONLY | O_CREAT | O_APPEND, 0777);
+        if (fd < 0) {
+            perror("Failed to open file for writing");
             return;
         }
+
+        if (lseek(fd, 0, SEEK_END) > 0) {  // Check if file is not empty
+            if (write(fd, "\n", 1) != 1) {  // Write a newline before appending new credentials
+                perror("Failed to write newline");
+                close(fd);
+                return;
+            }
+        }
+
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "%s@%s", username, password);
+        if (write(fd, buffer, strlen(buffer)) != strlen(buffer)) {
+            perror("Failed to write credentials");
+        }
+
+        close(fd);
+        printf("User credentials saved\n");
+
     }
 
-    char buffer[256];
-    snprintf(buffer, sizeof(buffer), "%s@%s", username, password);
-    if (write(fd, buffer, strlen(buffer)) != strlen(buffer)) {
-        perror("Failed to write credentials");
+
+
+
+    //--键盘事件函数---
+    static void ta_event_cb(lv_event_t * e) {
+        lv_event_code_t code = lv_event_get_code(e);
+        lv_obj_t * ta = lv_event_get_target(e);
+        if(code == LV_EVENT_FOCUSED) {
+            lv_keyboard_set_textarea(kb, ta);
+            lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        if(code == LV_EVENT_DEFOCUSED) {
+            lv_keyboard_set_textarea(kb, NULL);
+            lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        }
     }
 
-    close(fd);
-    printf("User credentials saved\n");
-
-}
-
-
-
-
-//--键盘事件函数---
-static void ta_event_cb(lv_event_t * e) {
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t * ta = lv_event_get_target(e);
-    if(code == LV_EVENT_FOCUSED) {
-        lv_keyboard_set_textarea(kb, ta);
-        lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
+    //密码显示和隐藏的按钮的事件函数
+    void pass_vis_btn_event_cb(lv_event_t * e) {
+        static bool pass_visible = false;
+        pass_visible = !pass_visible;
+        if (pass_visible) {
+            lv_textarea_set_password_mode(pass_ta, false);
+            lv_label_set_text(lv_obj_get_child(pass_vis_btn, 0), LV_SYMBOL_EYE_OPEN);
+        } else {
+            lv_textarea_set_password_mode(pass_ta, true);
+            lv_label_set_text(lv_obj_get_child(pass_vis_btn, 0), LV_SYMBOL_EYE_CLOSE);
+        }
     }
 
-    if(code == LV_EVENT_DEFOCUSED) {
-        lv_keyboard_set_textarea(kb, NULL);
-        lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+    //机器人的按钮事件 按钮点击事件回调函数
+    static void flush_btn_event_cb(lv_event_t * e) {
+        lv_obj_t * btn = lv_event_get_target(e);
+        flush_button_state = !flush_button_state; // 切换按钮状态
+        lv_label_set_text(lv_obj_get_child(btn, 0), flush_button_state ? "OFF" : "ON");
+
+        if(flush_button_state) {
+            control_led(7, 0); // 关闭D7灯
+            lv_obj_set_style_bg_color(flush_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
+        } else {
+            control_led(7, 1); // 打开D7灯
+            lv_obj_set_style_bg_color(flush_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
+        }
     }
-}
 
-//密码显示和隐藏的按钮的事件函数
-void pass_vis_btn_event_cb(lv_event_t * e) {
-    static bool pass_visible = false;
-    pass_visible = !pass_visible;
-    if (pass_visible) {
-        lv_textarea_set_password_mode(pass_ta, false);
-        lv_label_set_text(lv_obj_get_child(pass_vis_btn, 0), LV_SYMBOL_EYE_OPEN);
-    } else {
-        lv_textarea_set_password_mode(pass_ta, true);
-        lv_label_set_text(lv_obj_get_child(pass_vis_btn, 0), LV_SYMBOL_EYE_CLOSE);
-    }
-}
-//机器人的按钮事件 按钮点击事件回调函数
-static void flush_btn_event_cb(lv_event_t * e) {
-    lv_obj_t * btn = lv_event_get_target(e);
-    flush_button_state = !flush_button_state; // 切换按钮状态
-    lv_label_set_text(lv_obj_get_child(btn, 0), flush_button_state ? "OFF" : "ON");
-
-    if(flush_button_state) {
-        control_led(7, 0); // 关闭D7灯
-        lv_obj_set_style_bg_color(flush_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
-    } else {
-        control_led(7, 1); // 打开D7灯
-        lv_obj_set_style_bg_color(flush_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
-    }
-}
-
-//灯的按钮事件 按钮点击事件回调函数
-static void light_btn_event_cb(lv_event_t * e) 
-{
-    lv_obj_t * btn = lv_event_get_target(e);
-    //切换按钮状态
-    light_button_state=!light_button_state;
-    lv_label_set_text(lv_obj_get_child(btn, 0), light_button_state ? "OFF" : "ON");
-
-  
-    if(light_button_state) 
+    //灯的按钮事件 按钮点击事件回调函数
+    static void light_btn_event_cb(lv_event_t * e) 
     {
-        control_led(8, 0); // 关闭D8灯
-        lv_obj_set_style_bg_color(light_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
-    } else {
-        control_led(8, 1); // 打开D8灯
-        lv_obj_set_style_bg_color(light_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
+        lv_obj_t * btn = lv_event_get_target(e);
+        //切换按钮状态
+        light_button_state=!light_button_state;
+        lv_label_set_text(lv_obj_get_child(btn, 0), light_button_state ? "OFF" : "ON");
+
+    
+        if(light_button_state) 
+        {
+            control_led(8, 0); // 关闭D8灯
+            lv_obj_set_style_bg_color(light_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
+        } else {
+            control_led(8, 1); // 打开D8灯
+            lv_obj_set_style_bg_color(light_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
+        }
     }
-}
 
 
 
-//创建登录界面
-void create_login_screen() {
+    //创建登录界面
+    void create_login_screen()
+    {  
     lv_obj_t * scr = lv_scr_act();  // 获取屏幕父对象
 
     // Create a background
@@ -492,6 +507,39 @@ void create_chart_screen() {
     lv_obj_set_style_text_color(light_btn_label, lv_color_hex(0xFFFFFF), 0); // 设置按钮文字颜色
     lv_obj_add_event_cb(light_button, light_btn_event_cb, LV_EVENT_CLICKED, NULL);
 
+
+    // 创建天气数据容器
+    lv_obj_t *weather_cont = lv_obj_create(scr);
+    lv_obj_set_width(weather_cont, LV_SIZE_CONTENT);
+    lv_obj_set_height(weather_cont, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(weather_cont, LV_FLEX_FLOW_COLUMN); // 使用垂直排列
+    lv_obj_set_style_pad_all(weather_cont, 10, 0); // 设置容器内边距
+    lv_obj_align(weather_cont, LV_ALIGN_TOP_LEFT, 50, 200); // 根据需要调整位置
+
+    // 创建城市标签
+    city_label = lv_label_create(weather_cont);
+    lv_label_set_text(city_label, "City: Unknown");
+    lv_obj_set_style_text_font(city_label, &lv_font_montserrat_14, 0); // 设置字体大小
+    lv_obj_set_style_pad_bottom(city_label, 10, 0); // 设置标签之间的间距
+
+    // 创建风力标签
+    wind_power_label = lv_label_create(weather_cont);
+    lv_label_set_text(wind_power_label, "Wind Power: Unknown");
+    lv_obj_set_style_text_font(wind_power_label, &lv_font_montserrat_14, 0); // 设置字体大小
+    lv_obj_set_style_pad_bottom(wind_power_label, 10, 0); // 设置标签之间的间距
+
+    // 创建降水概率标签
+    rain_label = lv_label_create(weather_cont);
+    lv_label_set_text(rain_label, "Rain: Unknown");
+    lv_obj_set_style_text_font(rain_label, &lv_font_montserrat_14, 0); // 设置字体大小
+    WeatherData data;
+    get_weather_data(&data);
+    strcpy( data.city, "guangzhou");
+    strcpy( data.wind_power, "3-5 l");
+    strcpy( data.rain, "80%");
+    lv_label_set_text_fmt(city_label, "City: %s", data.city);
+    lv_label_set_text_fmt(wind_power_label, "Wind Power: %s", data.wind_power);
+    lv_label_set_text_fmt(rain_label, "Rain: %s", data.rain);
 //---------------------------------------------------------------
     // 创建第一个折线图
     chart1 = lv_chart_create(scr);
@@ -799,6 +847,126 @@ void* thread_SenTo(void* arg)
     close(socketfd);
 }
 
+// 提取 JSON 数据
+const char* extract_json(const char* response) {
+    const char *json_start = strstr(response, "\r\n\r\n");
+    if (json_start) {
+        json_start += 4; // 跳过 "\r\n\r\n"
+    } else {
+        json_start = response; // 如果没有找到 HTTP 头部结束标记，则认为整个响应是 JSON
+    }
+    return json_start;
+}
+
+void get_weather_data(WeatherData *data)
+{
+
+    int tcpsock;
+	int ret;
+	char ip[20]={0};
+	char rbuf[20000]={0};
+	
+	//定义ipv4地址结构体变量
+	struct sockaddr_in bindaddr;
+	bzero(&bindaddr,sizeof(bindaddr));
+	bindaddr.sin_family=AF_INET; //地址协议
+	bindaddr.sin_addr.s_addr=htonl(INADDR_ANY);
+	bindaddr.sin_port=htons(5548);  //客户端端口号
+	
+	//获取你要访问的http服务器ip地址
+	//http没有加密的   https在http的基础上添加了加密层
+	struct hostent *p=gethostbyname("ali-weather.showapi.com"); //天气预报的网址
+	struct in_addr *q=(struct in_addr *)(*(p->h_addr_list));
+	strcpy(ip,inet_ntoa(*q));
+	
+	//定义ipv4地址结构体变量存放服务器的ip和端口号
+	struct sockaddr_in serveraddr;
+	bzero(&serveraddr,sizeof(serveraddr));
+	serveraddr.sin_family=AF_INET;
+	serveraddr.sin_addr.s_addr=inet_addr(ip); //http服务器的ip
+	serveraddr.sin_port=htons(80);  //http协议,端口默认就是80
+	
+	//创建tcp套接字 --》买手机
+	tcpsock=socket(AF_INET,SOCK_STREAM,0);
+	if(tcpsock==-1)
+	{
+		perror("创建tcp套接字失败了!\n");
+		return -1;
+	}
+	
+	//取消端口绑定限制
+	int on=1; //非零
+	setsockopt(tcpsock,SOL_SOCKET,SO_REUSEADDR,&on,sizeof(on));
+	
+	//绑定ip和端口号 --》绑定手机号
+	ret=bind(tcpsock,(struct sockaddr *)&bindaddr,sizeof(bindaddr));
+	if(ret==-1)
+	{
+		perror("绑定ip和端口号失败了!\n");
+		return -1;
+	}
+	
+	//连接服务器 --》拨号
+	ret=connect(tcpsock,(struct sockaddr *)&serveraddr,sizeof(serveraddr));
+	if(ret==-1)
+	{
+		perror("连接服务器失败了!\n");
+		return -1;
+	}
+	
+	//拼接字符串得到完整的http请求
+	char *httprequest="GET /area-to-weather-date?area=%E5%B9%BF%E5%B7%9E HTTP/1.1\r\n"
+					  "Host: ali-weather.showapi.com\r\n"
+					  "Authorization: APPCODE 5d9ebeff853145a7b80cbe3dbfd9580e\r\n\r\n";
+	//发送刚才的请求
+	send(tcpsock,httprequest,strlen(httprequest),0);
+	
+	//接收http服务器回复的应答信息
+	recv(tcpsock,rbuf,20000,0);
+    printf("天气预报网址给我回复: %s\n",rbuf);
+   
+    cJSON *root = cJSON_Parse(rbuf);
+    if (root == NULL) {
+        // printf("Error parsing JSON data %s.\n", cJSON_GetErrorPtr());
+        return;
+    }
+
+    cJSON *body = cJSON_GetObjectItem(root, "showapi_res_body");
+    if (body == NULL) {
+        printf("Error finding 'showapi_res_body' in JSON data.\n");
+        cJSON_Delete(root);
+        return;
+    }
+
+    cJSON *city_info = cJSON_GetObjectItem(body, "cityInfo");
+    if (city_info) {
+        cJSON *city = cJSON_GetObjectItem(city_info, "c4");
+        if (city) {
+            strncpy(data->city, city->valuestring, sizeof(data->city) - 1);
+        }
+    }
+
+    cJSON *f1 = cJSON_GetObjectItem(body, "f1");
+    if (f1) {
+        cJSON *wind_power = cJSON_GetObjectItem(f1, "day_wind_power");
+        if (wind_power) {
+            strncpy(data->wind_power, wind_power->valuestring, sizeof(data->wind_power) - 1);
+        }
+
+        cJSON *rain = cJSON_GetObjectItem(f1, "jiangshui");
+        if (rain) {
+            strncpy(data->rain, rain->valuestring, sizeof(data->rain) - 1);
+        }
+    }
+
+    cJSON_Delete(root);
+	//关闭套接字
+	close(tcpsock);
+
+
+
+}
+
 /*************** 
 我创建的内容结束
 ***************/
@@ -872,8 +1040,8 @@ int main(void)
     }
     /*Create a Demo*/
     //lv_demo_widgets();//屏蔽掉demo
-     control_led(9, 0); // 关闭D7灯
-      control_led(10, 0); // 关闭D7灯
+    control_led(9, 0); // 关闭D7灯
+    control_led(10, 0); // 关闭D7灯
     /*Handle LitlevGL tasks (tickless mode)*/
     while(1) 
     {
