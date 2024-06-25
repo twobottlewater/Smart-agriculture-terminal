@@ -775,6 +775,25 @@ void* thread_SenTo(void* arg)
 
         // 每隔5秒发送一次
         sleep(5);
+
+        //if
+        if(temp_values[MAX_TEMP_VALUES - 1]>80)
+        {
+        control_led(9, 1); //开灯
+        }
+        else
+        {
+        control_led(9, 0); //关灯
+        }
+
+        if( humid_values[MAX_TEMP_VALUES - 1]>80)
+        {
+         control_led(10, 1); //开灯
+        }
+        else{
+              control_led(10, 0); //开灯
+        }
+        
     }
 
     close(socketfd);
@@ -790,7 +809,6 @@ int main(void)
 {
     /*LittlevGL init*/
     lv_init();//LVGL程序的初始化
-
 
     //对液晶屏进行初始化
     /*Linux frame buffer device init*/
@@ -854,7 +872,8 @@ int main(void)
     }
     /*Create a Demo*/
     //lv_demo_widgets();//屏蔽掉demo
-
+     control_led(9, 0); // 关闭D7灯
+      control_led(10, 0); // 关闭D7灯
     /*Handle LitlevGL tasks (tickless mode)*/
     while(1) 
     {
