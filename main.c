@@ -215,9 +215,11 @@ static void flush_btn_event_cb(lv_event_t * e) {
     if(strcmp(label_text, "ON") == 0) {
         lv_label_set_text(lv_obj_get_child(btn, 0), "OFF");
         control_led(7, 0); // 关闭D7灯
+        lv_obj_set_style_bg_color(flush_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
     } else {
         lv_label_set_text(lv_obj_get_child(btn, 0), "ON");
         control_led(7, 1); // 打开D7灯
+        lv_obj_set_style_bg_color(flush_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
     }
 }
 //灯的按钮事件 按钮点击事件回调函数
@@ -227,9 +229,11 @@ static void light_btn_event_cb(lv_event_t * e) {
     if(strcmp(label_text, "ON") == 0) {
         lv_label_set_text(lv_obj_get_child(btn, 0), "OFF");
         control_led(8, 0); // 关闭D8灯
+        lv_obj_set_style_bg_color(light_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
     } else {
         lv_label_set_text(lv_obj_get_child(btn, 0), "ON");
         control_led(8, 1); // 打开D8灯
+         lv_obj_set_style_bg_color(light_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
     }
 }
 
@@ -381,26 +385,33 @@ void create_chart_screen() {
     time_label = lv_label_create(scr);
     lv_label_set_text(time_label, "Loading...");
     lv_obj_set_style_text_font(time_label, &lv_font_montserrat_24, 0); // 设置字体大小
-    lv_obj_align(time_label, LV_ALIGN_TOP_MID, 0, 10); // Top center with some offset
+    lv_obj_align(time_label, LV_ALIGN_TOP_MID, 0, 10); // 顶部居中，稍微偏移
+
+    // 创建垂直容器，用于排列标签
+    lv_obj_t * label_cont = lv_obj_create(scr);
+    lv_obj_set_width(label_cont, LV_SIZE_CONTENT);
+    lv_obj_set_height(label_cont, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(label_cont, LV_FLEX_FLOW_COLUMN); // 使用垂直排列
+    lv_obj_set_style_pad_all(label_cont, 10, 0); // 设置容器内边距
+    lv_obj_align(label_cont, LV_ALIGN_TOP_LEFT, 10, 40); // 顶部左侧对齐，稍微偏移
+
+
 
     // 创建温度数据标签
-    temp_label = lv_label_create(scr);
+    temp_label = lv_label_create(label_cont);
     lv_label_set_text(temp_label, "Temperature: xxx°C");
-    lv_obj_align(temp_label, LV_ALIGN_TOP_LEFT, 10, 50); // 顶部左侧，稍微偏移
     lv_obj_set_style_text_font(temp_label, &lv_font_montserrat_24, 0); // 设置字体大小
-    //lv_label_set_style_text_color(temp_label, lv_color_hex(0x0080FF), 0); // 设置字体颜色
+    lv_obj_set_style_pad_bottom(temp_label, 10, 0); // 设置标签之间的间距
 
     // 创建湿度数据标签
-    humid_label = lv_label_create(scr);
+    humid_label = lv_label_create(label_cont);
     lv_label_set_text(humid_label, "Humidity: xxx%");
-    lv_obj_align(humid_label, LV_ALIGN_TOP_LEFT, 10, 90); // 在温度标签下方，稍微偏移
     lv_obj_set_style_text_font(humid_label, &lv_font_montserrat_24, 0); // 设置字体大小
-    //lv_label_set_style_text_color(humid_label, lv_color_hex(0xFF8000), 0); // 设置字体颜色
+    lv_obj_set_style_pad_bottom(humid_label, 10, 0); // 设置标签之间的间距
 
     // 创建光照强度数据标签
-    lux_label = lv_label_create(scr);
+    lux_label = lv_label_create(label_cont);
     lv_label_set_text(lux_label, "Lux: xxx lx");
-    lv_obj_align(lux_label, LV_ALIGN_TOP_LEFT, 10, 130); // 在湿度标签下方，稍微偏移
     lv_obj_set_style_text_font(lux_label, &lv_font_montserrat_24, 0); // 设置字体大小
 
 //---------------------------------------------------------------
