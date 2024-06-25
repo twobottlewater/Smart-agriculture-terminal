@@ -13,6 +13,7 @@
 #include <sys/types.h>          /* 网络头文件 */
 #include <netinet/in.h>
 #include <arpa/inet.h>
+//#include "cJSON.h" // cJSON库头文件，需提前安装和包含
 
 
 #define DISP_BUF_SIZE (128 * 1024)
@@ -26,11 +27,22 @@
 
 #define CLIENT_IP "192.168.1.161"  //我自己这边端的ip
 #define CLIENT_PORT 20001          //客户端的端口号这个主要用来开发板发
+#define LED_DEVICE "/dev/led_drv"
+
 
 
 /*************** 
 我创建的内容开始
 ***************/
+int led_fd;//操作灯的文件描述符
+
+// 定义灯控制函数
+void control_led(int led, int state) {
+    char buf[2];
+    buf[0] = state; // 亮灭状态
+    buf[1] = led;   // 第几盏灯
+    write(led_fd, buf, sizeof(buf));
+}
 
 //登录界面的
 static lv_obj_t * kb;
@@ -196,24 +208,28 @@ void pass_vis_btn_event_cb(lv_event_t * e) {
         lv_label_set_text(lv_obj_get_child(pass_vis_btn, 0), LV_SYMBOL_EYE_CLOSE);
     }
 }
-//灯和机器人的按钮事件 按钮点击事件回调函数
+//机器人的按钮事件 按钮点击事件回调函数
 static void flush_btn_event_cb(lv_event_t * e) {
     lv_obj_t * btn = lv_event_get_target(e);
     const char * label_text = lv_label_get_text(lv_obj_get_child(btn, 0));
     if(strcmp(label_text, "ON") == 0) {
         lv_label_set_text(lv_obj_get_child(btn, 0), "OFF");
+        control_led(7, 0); // 关闭D7灯
     } else {
         lv_label_set_text(lv_obj_get_child(btn, 0), "ON");
+        control_led(7, 1); // 打开D7灯
     }
 }
-
+//灯的按钮事件 按钮点击事件回调函数
 static void light_btn_event_cb(lv_event_t * e) {
     lv_obj_t * btn = lv_event_get_target(e);
     const char * label_text = lv_label_get_text(lv_obj_get_child(btn, 0));
     if(strcmp(label_text, "ON") == 0) {
         lv_label_set_text(lv_obj_get_child(btn, 0), "OFF");
+        control_led(8, 0); // 关闭D8灯
     } else {
         lv_label_set_text(lv_obj_get_child(btn, 0), "ON");
+        control_led(8, 1); // 打开D8灯
     }
 }
 
@@ -386,15 +402,8 @@ void create_chart_screen() {
     lv_label_set_text(lux_label, "Lux: xxx lx");
     lv_obj_align(lux_label, LV_ALIGN_TOP_LEFT, 10, 130); // 在湿度标签下方，稍微偏移
     lv_obj_set_style_text_font(lux_label, &lv_font_montserrat_24, 0); // 设置字体大小
-    //lv_label_set_style_text_color(lux_label, lv_color_hex(0x00C000), 0); // 设置字体颜色
 
-    //     // 在初始化函数中创建 lux_label
-    // lux_label = lv_label_create(scr);
-    // lv_obj_set_style_text_font(lux_label, &lv_font_montserrat_14, 0); // 设置字体大小
-    // lv_obj_align(lux_label, LV_ALIGN_TOP_RIGHT, -10, 10); // 右上角对齐，调整偏移量
 
-    // // 在定时器回调函数中更新 Lux 值
-    // lv_label_set_text_fmt(lux_label, "Lux: %d", lux_values[MAX_TEMP_VALUES - 1]);
 
     // 创建一个水平容器用于放置标签和按钮 -----机器人按钮
     lv_obj_t * flush_cont = lv_obj_create(scr);
@@ -438,6 +447,72 @@ void create_chart_screen() {
     lv_obj_set_style_text_font(light_btn_label, &lv_font_montserrat_24, 0); // 设置按钮字体大小
     lv_obj_set_style_text_align(light_btn_label, LV_TEXT_ALIGN_CENTER,NULL); // 设置文本居中对齐
     lv_obj_add_event_cb(light_button, light_btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+    // // 创建一个水平容器用于放置标签和按钮 -----机器人按钮
+    // lv_obj_t *flush_cont = lv_obj_create(scr);
+    // lv_obj_set_width(flush_cont, LV_SIZE_CONTENT);
+    // lv_obj_set_height(flush_cont, LV_SIZE_CONTENT);
+    // lv_obj_set_flex_flow(flush_cont, LV_FLEX_FLOW_ROW); // 使用水平排列
+    // lv_obj_set_style_pad_all(flush_cont, 10, 0); // 设置容器内边距
+    // lv_obj_align(flush_cont, LV_ALIGN_TOP_RIGHT, -20, 100);
+
+    // // 设置容器样式
+    // lv_obj_set_style_bg_color(flush_cont, lv_color_hex(0xF0F0F0), 0); // 设置背景颜色
+    // lv_obj_set_style_border_width(flush_cont, 2, 0); // 设置边框宽度
+    // lv_obj_set_style_border_color(flush_cont, lv_color_hex(0xCCCCCC), 0); // 设置边框颜色
+    // lv_obj_set_style_radius(flush_cont, 10, 0); // 设置圆角半径
+
+    // lv_obj_t *flush_label = lv_label_create(flush_cont);
+    // lv_label_set_text(flush_label, "Watering robot: ");
+    // lv_obj_set_style_text_font(flush_label, &lv_font_montserrat_24, 0); // 设置字体大小
+    // lv_obj_set_style_text_align(flush_label, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+
+    // flush_button = lv_btn_create(flush_cont);
+    // lv_obj_set_size(flush_button, 100, 50); // 设置按钮大小
+    // lv_obj_set_style_bg_color(flush_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
+    // lv_obj_set_style_border_width(flush_button, 2, 0); // 设置按钮边框宽度
+    // lv_obj_set_style_border_color(flush_button, lv_color_hex(0x005BBB), 0); // 设置按钮边框颜色
+    // lv_obj_set_style_radius(flush_button, 10, 0); // 设置按钮圆角半径
+
+    // lv_obj_t *flush_btn_label = lv_label_create(flush_button);
+    // lv_label_set_text(flush_btn_label, "ON");
+    // lv_obj_set_style_text_font(flush_btn_label, &lv_font_montserrat_24, 0); // 设置按钮字体大小
+    // lv_obj_set_style_text_align(flush_btn_label, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+    // lv_obj_set_style_text_color(flush_btn_label, lv_color_hex(0xFFFFFF), 0); // 设置按钮文字颜色
+    // lv_obj_add_event_cb(flush_button, flush_btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+    // // 创建一个水平容器用于放置标签和按钮-------灯光按钮
+    // lv_obj_t *light_cont = lv_obj_create(scr);
+    // lv_obj_set_width(light_cont, LV_SIZE_CONTENT);
+    // lv_obj_set_height(light_cont, LV_SIZE_CONTENT);
+    // lv_obj_set_flex_flow(light_cont, LV_FLEX_FLOW_ROW); // 使用水平排列
+    // lv_obj_set_style_pad_all(light_cont, 10, 0); // 设置容器内边距
+    // lv_obj_align(light_cont, LV_ALIGN_TOP_RIGHT, -20, 200);
+
+    // // 设置容器样式
+    // lv_obj_set_style_bg_color(light_cont, lv_color_hex(0xF0F0F0), 0); // 设置背景颜色
+    // lv_obj_set_style_border_width(light_cont, 2, 0); // 设置边框宽度
+    // lv_obj_set_style_border_color(light_cont, lv_color_hex(0xCCCCCC), 0); // 设置边框颜色
+    // lv_obj_set_style_radius(light_cont, 10, 0); // 设置圆角半径
+
+    // lv_obj_t *light_label = lv_label_create(light_cont);
+    // lv_label_set_text(light_label, "Light: ");
+    // lv_obj_set_style_text_font(light_label, &lv_font_montserrat_24, 0); // 设置字体大小
+    // lv_obj_set_style_text_align(light_label, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+
+    // light_button = lv_btn_create(light_cont);
+    // lv_obj_set_size(light_button, 100, 50); // 设置按钮大小
+    // lv_obj_set_style_bg_color(light_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
+    // lv_obj_set_style_border_width(light_button, 2, 0); // 设置按钮边框宽度
+    // lv_obj_set_style_border_color(light_button, lv_color_hex(0x005BBB), 0); // 设置按钮边框颜色
+    // lv_obj_set_style_radius(light_button, 10, 0); // 设置按钮圆角半径
+
+    // lv_obj_t *light_btn_label = lv_label_create(light_button);
+    // lv_label_set_text(light_btn_label, "ON");
+    // lv_obj_set_style_text_font(light_btn_label, &lv_font_montserrat_24, 0); // 设置按钮字体大小
+    // lv_obj_set_style_text_align(light_btn_label, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+    // lv_obj_set_style_text_color(light_btn_label, lv_color_hex(0xFFFFFF), 0); // 设置按钮文字颜色
+    // lv_obj_add_event_cb(light_button, light_btn_event_cb, LV_EVENT_CLICKED, NULL);
 
 
     // 创建第一个折线图
@@ -690,6 +765,12 @@ int main(void)
     pthread_t senFuntion_id; // 创建线程标识符
 	pthread_create(&senFuntion_id, NULL, thread_SenTo, NULL);
    
+    //打开设备文件
+    led_fd = open(LED_DEVICE, O_RDWR);
+    if(led_fd == -1) {
+        perror("open");
+        return -1;
+    }
     /*Create a Demo*/
     //lv_demo_widgets();//屏蔽掉demo
 
