@@ -35,6 +35,8 @@
 我创建的内容开始
 ***************/
 int led_fd;//操作灯的文件描述符
+int flush_button_state = 0; // 0: off, 1: on
+int light_button_state = 0; // 0: off, 1: on
 
 // 定义灯控制函数
 void control_led(int led, int state) {
@@ -67,6 +69,10 @@ static int temp_index = 0;
 static int temp_values[MAX_TEMP_VALUES];
 static int humid_values[MAX_TEMP_VALUES];
 static int lux_values[MAX_TEMP_VALUES];
+
+//把两个按钮的文本设置独立一下
+lv_obj_t *flush_btn_label;
+lv_obj_t *light_btn_label;
 
 bool check_user_credentials(const char* username, const char* password) {
     int fd = open("./mima.txt", O_RDONLY);
@@ -211,29 +217,34 @@ void pass_vis_btn_event_cb(lv_event_t * e) {
 //机器人的按钮事件 按钮点击事件回调函数
 static void flush_btn_event_cb(lv_event_t * e) {
     lv_obj_t * btn = lv_event_get_target(e);
-    const char * label_text = lv_label_get_text(lv_obj_get_child(btn, 0));
-    if(strcmp(label_text, "ON") == 0) {
-        lv_label_set_text(lv_obj_get_child(btn, 0), "OFF");
+    flush_button_state = !flush_button_state; // 切换按钮状态
+    lv_label_set_text(lv_obj_get_child(btn, 0), flush_button_state ? "OFF" : "ON");
+
+    if(flush_button_state) {
         control_led(7, 0); // 关闭D7灯
         lv_obj_set_style_bg_color(flush_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
     } else {
-        lv_label_set_text(lv_obj_get_child(btn, 0), "ON");
         control_led(7, 1); // 打开D7灯
         lv_obj_set_style_bg_color(flush_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
     }
 }
+
 //灯的按钮事件 按钮点击事件回调函数
-static void light_btn_event_cb(lv_event_t * e) {
+static void light_btn_event_cb(lv_event_t * e) 
+{
     lv_obj_t * btn = lv_event_get_target(e);
-    const char * label_text = lv_label_get_text(lv_obj_get_child(btn, 0));
-    if(strcmp(label_text, "ON") == 0) {
-        lv_label_set_text(lv_obj_get_child(btn, 0), "OFF");
+    //切换按钮状态
+    light_button_state=!light_button_state;
+    lv_label_set_text(lv_obj_get_child(btn, 0), light_button_state ? "OFF" : "ON");
+
+  
+    if(light_button_state) 
+    {
         control_led(8, 0); // 关闭D8灯
         lv_obj_set_style_bg_color(light_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
     } else {
-        lv_label_set_text(lv_obj_get_child(btn, 0), "ON");
         control_led(8, 1); // 打开D8灯
-         lv_obj_set_style_bg_color(light_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
+        lv_obj_set_style_bg_color(light_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
     }
 }
 
@@ -371,7 +382,7 @@ static void generate_random_temp(lv_timer_t *timer) {
         humid_values[i] = rand() % 101; // Random humidity between 0 and 100
         lux_values[i] = rand() % 2001; // Random Lux between 0 and 2000
     }
-    lv_label_set_text_fmt(temp_label, "temperature data: %d°C", temp_values[MAX_TEMP_VALUES - 1]);
+    lv_label_set_text_fmt(temp_label, "temperature : %d°C", temp_values[MAX_TEMP_VALUES - 1]);
     lv_label_set_text_fmt(humid_label, "Humidity data: %d%%", humid_values[MAX_TEMP_VALUES - 1]);
     lv_label_set_text_fmt(lux_label, "Lux: %d lx", lux_values[MAX_TEMP_VALUES - 1]);
 }
@@ -441,7 +452,7 @@ void create_chart_screen() {
     lv_obj_set_style_border_color(flush_button, lv_color_hex(0x005BBB), 0); // 设置按钮边框颜色
     lv_obj_set_style_radius(flush_button, 10, 0); // 设置按钮圆角半径
 
-    lv_obj_t *flush_btn_label = lv_label_create(flush_button);
+    flush_btn_label = lv_label_create(flush_button);
     lv_label_set_text(flush_btn_label, "ON");
     lv_obj_set_style_text_font(flush_btn_label, &lv_font_montserrat_24, 0); // 设置按钮字体大小
     lv_obj_set_style_text_align(flush_btn_label, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
@@ -474,7 +485,7 @@ void create_chart_screen() {
     lv_obj_set_style_border_color(light_button, lv_color_hex(0x005BBB), 0); // 设置按钮边框颜色
     lv_obj_set_style_radius(light_button, 10, 0); // 设置按钮圆角半径
 
-    lv_obj_t *light_btn_label = lv_label_create(light_button);
+    light_btn_label = lv_label_create(light_button);
     lv_label_set_text(light_btn_label, "ON");
     lv_obj_set_style_text_font(light_btn_label, &lv_font_montserrat_24, 0); // 设置按钮字体大小
     lv_obj_set_style_text_align(light_btn_label, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
@@ -593,7 +604,8 @@ void* thread_Recv(void* arg)
         close(udp_recv_socket);
         return NULL;
     }
-
+    int led_n,temp_n,bot_n;
+ 
     while (1)
     {
         char buf[1024] = {0};
@@ -605,7 +617,7 @@ void* thread_Recv(void* arg)
             perror("recvfrom");
             continue;
         }
-
+         printf("Received: %s\n", buf);
         // 得判断一下等下来的数据是不是时间数据
         if (strncmp(buf, "TIME:", 5) == 0)
         {
@@ -622,8 +634,81 @@ void* thread_Recv(void* arg)
             }
            update_system_time(time_part);
         }
+        //没问题就解析字符串
+        // 解析接收到的 JSON 数据
+        cJSON *root = cJSON_Parse(buf);
+        if (root == NULL)
+        {
+            printf("Error parsing JSON: %s\n", cJSON_GetErrorPtr());
+            continue;
+        }
 
-        printf("Received: %s\n", buf);
+        // 解析并处理具体的指令
+        cJSON *paras = cJSON_GetObjectItem(root, "paras");
+        if (paras != NULL)
+        {
+
+
+            cJSON *temp = cJSON_GetObjectItem(paras, "temp");
+            cJSON *led = cJSON_GetObjectItem(paras, "led");
+            cJSON *bot = cJSON_GetObjectItem(paras, "bot");
+            if(temp != NULL)
+            {
+                temp_n=temp->valueint;
+                temp_values[MAX_TEMP_VALUES - 1] = temp_n;
+                printf("temp里面是:%d\n",temp->valueint);
+                lv_label_set_text_fmt(temp_label, "temperature : %d°C", temp_values[MAX_TEMP_VALUES - 1]);
+            }
+
+            if (led != NULL)
+            {
+                led_n=led->type;
+                printf("led里面是:%d\n",led->type);
+                if (led_n!=0)
+                {
+                    light_button_state=0;
+                    control_led(8, 1); // 打开D8灯
+                    lv_obj_set_style_bg_color(light_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
+                    lv_label_set_text(light_btn_label, "ON");
+                    /* code */
+                }
+                else
+                {
+                    light_button_state=1;
+                    control_led(8, 0); // 关闭D8灯
+                    lv_obj_set_style_bg_color(light_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
+                    lv_label_set_text(light_btn_label, "OFF");
+                }
+                
+            }
+            if (bot != NULL)
+            {
+                bot_n=bot->type;
+                printf("bot里面是:%d\n",bot->type);
+                if (bot_n!=0)
+                {
+                    flush_button_state = 0; // ON
+                    control_led(7, 1); // 打开D7灯
+                    lv_obj_set_style_bg_color(flush_button, lv_color_hex(0x007AFF), 0); // 设置按钮背景颜色
+                    lv_label_set_text(flush_btn_label, "ON");
+                }
+                else
+                {
+                    flush_button_state = 1; // OFF
+                    control_led(7, 0); // 关闭D7灯
+                    lv_obj_set_style_bg_color(flush_button, lv_color_hex(0xFFA000), 0); // 设置按钮背景颜色
+                   lv_label_set_text(flush_btn_label, "OFF");
+                }            
+            }
+
+
+            
+            
+             cJSON_Delete(root); // 删除 cJSON 对象，释放内存
+        }
+
+
+
     }
 
     close(udp_recv_socket);
@@ -649,18 +734,47 @@ void* thread_SenTo(void* arg)
     dest_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
     while (1)
     {
-        int value;
-        printf("请输入要发送的数据：");
-        scanf("%d",&value);
-
-        int ret = sendto(socketfd, &value, sizeof(value),0,(struct sockaddr*)&dest_addr,sizeof(dest_addr));
-        if(ret == -1)
-        {
-            perror("sendto error");
-            break;
+          // 创建CJSON对象
+        cJSON *root = cJSON_CreateObject();
+        if (root == NULL) {
+            perror("cJSON_CreateObject");
+            close(socketfd);
+            return NULL;
         }
 
-        printf("sendto ret:%d\n",ret);
+        // 添加数据到CJSON对象
+        cJSON_AddNumberToObject(root, "temperature", temp_values[MAX_TEMP_VALUES - 1]);
+        cJSON_AddNumberToObject(root, "humidity", humid_values[MAX_TEMP_VALUES - 1]);
+        cJSON_AddNumberToObject(root, "lux", lux_values[MAX_TEMP_VALUES - 1]);
+        cJSON_AddNumberToObject(root, "robot", flush_button_state);
+        cJSON_AddNumberToObject(root, "light", light_button_state);
+
+        // 将CJSON对象转化为字符串
+        char *cjson_str = cJSON_Print(root);
+        if (cjson_str == NULL) {
+            perror("cJSON_Print");
+            cJSON_Delete(root);
+            close(socketfd);
+            return NULL;
+        }
+        // 发送数据
+        int ret = sendto(socketfd, cjson_str, strlen(cjson_str), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        if (ret == -1) {
+            perror("sendto error");
+            free(cjson_str);
+            cJSON_Delete(root);
+            close(socketfd);
+            return NULL;
+        }
+
+        printf("sendto ret: %d\n", ret);
+
+        // 释放内存
+        free(cjson_str);
+        cJSON_Delete(root);
+
+        // 每隔5秒发送一次
+        sleep(5);
     }
 
     close(socketfd);
