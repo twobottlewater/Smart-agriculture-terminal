@@ -1,31 +1,13 @@
 # LVGL for frame buffer device
 
-LVGL configured to work with /dev/fb0 on Linux.
+这个是粤嵌学习的第二阶段项目是一个智能大棚的项目
 
-When cloning this repository, also make sure to download submodules (`git submodule update --init --recursive`) otherwise you will be missing key components.
+这个仓库放的是终端模块的代码
 
-Check out this blog post for a step by step tutorial:
-https://blog.lvgl.io/2018-01-03/linux_fb
+主要是基于LVGL框架
 
-## Clone the project
+采用udp和本地的linux服务器端通信交互信息
 
-Clone the LVGL Framebuffer Demo project and its related sub modules:
 
-```
-git clone https://github.com/lvgl/lv_port_linux_frame_buffer.git
-cd lv_port_linux_frame_buffer/
-git submodule update --init --recursive
-```
-
-## Build the project
-
-```
-make
-sudo make install
-```
-
-## Run the demo application
-
-```
-demo
-```
+本地的Linux服务器端的代码仓库地址在下面
+https://github.com/twobottlewater/Ubuntu-huawei-mqtt
